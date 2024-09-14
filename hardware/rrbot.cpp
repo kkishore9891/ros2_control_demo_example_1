@@ -348,21 +348,33 @@ hardware_interface::return_type RRBotSystemPositionOnlyHardware::write(
   }
 
   // Get the command value
-  float normalizedValue = static_cast<float>(hw_commands_[0]);
+  float angle = static_cast<float>(hw_commands_[0]);
 
-if (normalizedValue < -(M_PI_2+0.001) || normalizedValue > (M_PI_2+0.001))
+  // Validate the command value
+  if (angle < -(M_PI_2+0.001) || angle > (M_PI_2+0.001))
   {
     RCLCPP_ERROR(
       rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
-      "Invalid command value: %.3f. Must be between -π/2 and π/2.", normalizedValue);
+      "Invalid command value: %.3f. Must be between -π/2 and π/2.", angle);
     return hardware_interface::return_type::ERROR;
   } 
- 
-  RCLCPP_INFO(rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Writing...");
 
-  RCLCPP_INFO(
-    rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Joints successfully written!");
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
+  std::ostringstream oss;
+  oss << std::fixed << std::setprecision(3) << angle << "\n";
+  std::string command_str = oss.str();
+
+  // ssize_t bytes_written = ::write(serial_port_, command_str.c_str(), command_str.length());
+
+  // if (bytes_written < 0)
+  // {
+  //   RCLCPP_ERROR(rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Failed to write to serial port: %s", strerror(errno));
+  //   return hardware_interface::return_type::ERROR;
+  // }
+
+  // Ensure all data is transmitted
+  tcdrain(serial_port_);
+
+  RCLCPP_INFO(rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Sent command: %.3f", angle);
 
   return hardware_interface::return_type::OK;
 }
