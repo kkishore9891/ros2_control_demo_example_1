@@ -27,6 +27,8 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
+#include <iomanip>  // For std::setprecision
+#include <sstream>  // For std::ostringstream
 
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -242,19 +244,92 @@ hardware_interface::CallbackReturn RRBotSystemPositionOnlyHardware::on_deactivat
 hardware_interface::return_type RRBotSystemPositionOnlyHardware::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
-  RCLCPP_INFO(rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Reading...");
+  char buf[256];
+  ssize_t num_bytes = ::read(serial_port_, buf, sizeof(buf));
 
-  for (uint i = 0; i < hw_states_.size(); i++)
+  if (num_bytes < 0)
   {
-    // Simulate RRBot's movement
-    hw_states_[i] = hw_states_[i] + (hw_commands_[i] - hw_states_[i]) / hw_slowdown_;
-    RCLCPP_INFO(
-      rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Got state %.5f for joint %d!",
-      hw_states_[i], i);
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+    {
+      // No data available right now, but it's not an error
+      RCLCPP_DEBUG(
+        rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+        "No data available on serial port right now.");
+      return hardware_interface::return_type::OK;
+    }
+    else
+    {
+      RCLCPP_ERROR(
+        rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+        "Error reading from serial port: %s", strerror(errno));
+      return hardware_interface::return_type::ERROR;
+    }
   }
-  RCLCPP_INFO(rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Joints successfully read!");
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
+  else if (num_bytes == 0)
+  {
+    RCLCPP_DEBUG(
+      rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+      "No data read from serial port");
+  }
+  else
+  {
+    // Append received data to the read buffer
+    read_buffer_.append(buf, num_bytes);
+
+    // Process complete lines (terminated by '\n')
+    size_t pos = 0;
+    while ((pos = read_buffer_.find('\n')) != std::string::npos)
+    {
+      std::string line = read_buffer_.substr(0, pos);
+      read_buffer_.erase(0, pos + 1); // Remove the processed line from the buffer
+
+      // Remove any carriage return characters
+      line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+
+      // Ensure the line is not empty
+      if (line.empty())
+      {
+        RCLCPP_WARN(
+          rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+          "Received empty line, skipping.");
+        continue;  // Skip empty lines
+      }
+
+      // Now, try to parse the line as a floating-point angle
+      try
+      {
+        float angle = std::stof(line);
+        if (angle >= -1.00 && angle <= 1.00)  // Ensure angle is in the valid range
+        {
+          hw_states_[0] = static_cast<double>(angle);  // Store the angle in hw_states_
+          RCLCPP_INFO(
+            rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+            "Read angle: %.2f", angle);
+        }
+        else
+        {
+          RCLCPP_WARN(
+            rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+            "Received angle out of range: %.2f", angle);
+        }
+      }
+      catch (const std::invalid_argument & e)
+      {
+        RCLCPP_ERROR(
+          rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+          "Invalid data received: '%s'", line.c_str());
+      }
+      catch (const std::out_of_range & e)
+      {
+        RCLCPP_ERROR(
+          rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+          "Received angle is out of range: '%s'", line.c_str());
+      }
+    }
+  }
+
+  // Even though we have removed the simulation, we must still update the state of the joint
+  // Ensure joint state is updated with new data from the servo
 
   return hardware_interface::return_type::OK;
 }
