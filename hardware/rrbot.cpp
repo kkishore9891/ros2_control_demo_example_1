@@ -300,7 +300,7 @@ hardware_interface::return_type RRBotSystemPositionOnlyHardware::read(
       try
       {
         float angle = std::stof(line);
-        if (angle >= -M_PI_2 && angle <= M_PI_2)  // Ensure angle is in the valid range
+        if (angle >= -(M_PI_2+0.001) && angle <= (M_PI_2+0.001))  // Ensure angle is in the valid range
         {
           hw_states_[0] = static_cast<double>(angle);  // Store the angle in hw_states_
           RCLCPP_INFO(
@@ -350,7 +350,7 @@ hardware_interface::return_type RRBotSystemPositionOnlyHardware::write(
   // Get the command value
   float normalizedValue = static_cast<float>(hw_commands_[0]);
 
-if (normalizedValue < -M_PI_2 || normalizedValue > M_PI_2)
+if (normalizedValue < -(M_PI_2+0.001) || normalizedValue > (M_PI_2+0.001))
   {
     RCLCPP_ERROR(
       rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
