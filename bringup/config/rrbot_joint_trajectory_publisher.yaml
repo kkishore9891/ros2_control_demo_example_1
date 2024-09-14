@@ -1,0 +1,18 @@
+publisher_joint_trajectory_controller:
+  ros__parameters:
+
+    controller_name: "joint_trajectory_position_controller"
+    wait_sec_between_publish: 5
+
+    goal_names: ["pos1", "pos2", "pos3", "pos4"]
+    pos1: [0.785]
+    pos2: [0]
+    pos3: [-0.785]
+    pos4: [0]
+
+    joints:
+      - Revolute_1
+
+    check_starting_point: false
+    starting_point_limits:
+      Revolute_1: [-0.1,0.1]

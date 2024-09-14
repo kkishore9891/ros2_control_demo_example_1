@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!-- Revolute-Revolute Manipulator -->
+<!--
+Copied and modified from ROS1 example -
+https://github.com/ros-simulation/gazebo_ros_demos/blob/kinetic-devel/rrbot_description/urdf/rrbot.xacro
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="Servo_clone">
+  <xacro:arg name="prefix" default="" />
+
+  <!-- Import RRBot macro -->
+  <xacro:include filename="$(find Servo_clone_description)/urdf/Servo_clone.xacro" />
+
+  <!-- Import RRBot ros2_control description -->
+  <xacro:include filename="$(find ros2_control_demo_example_1)/ros2_control/servo_arm.ros2_control.xacro" />
+
+  <xacro:servo_clone_ros2_control
+    name="Servo_clone" prefix="$(arg prefix)" />
+
+</robot>
