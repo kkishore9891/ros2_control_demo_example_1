@@ -97,18 +97,61 @@ hardware_interface::CallbackReturn RRBotSystemPositionOnlyHardware::on_init(
 hardware_interface::CallbackReturn RRBotSystemPositionOnlyHardware::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
-  RCLCPP_INFO(
-    rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Configuring ...please wait...");
-
-  for (int i = 0; i < hw_start_sec_; i++)
+serial_port_ = ::open("/dev/ttyUSB0", O_RDWR | O_NOCTTY | O_NDELAY);
+  if (serial_port_ == -1)
   {
-    rclcpp::sleep_for(std::chrono::seconds(1));
-    RCLCPP_INFO(
-      rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "%.1f seconds left...",
-      hw_start_sec_ - i);
+    RCLCPP_FATAL(
+      rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+      "Failed to open serial port /dev/ttyUSB0. Error: %s", strerror(errno));
+    return hardware_interface::CallbackReturn::ERROR;
   }
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
+
+  // Configure serial port
+  memset(&tty_, 0, sizeof tty_);
+
+  if (tcgetattr(serial_port_, &tty_) != 0)
+  {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+      "Error from tcgetattr: %s", strerror(errno));
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  // Set baud rate to 115200
+  cfsetospeed(&tty_, B115200);
+  cfsetispeed(&tty_, B115200);
+
+  // Configure port settings
+  tty_.c_cflag &= ~PARENB;        // No parity bit
+  tty_.c_cflag &= ~CSTOPB;        // One stop bit
+  tty_.c_cflag &= ~CSIZE;
+  tty_.c_cflag |= CS8;            // 8 bits per byte
+  tty_.c_cflag &= ~CRTSCTS;       // No hardware flow control
+  tty_.c_cflag |= CREAD | CLOCAL; // Turn on READ & ignore ctrl lines
+
+  tty_.c_lflag &= ~ICANON;
+  tty_.c_lflag &= ~ECHO;          // Disable echo
+  tty_.c_lflag &= ~ECHOE;         // Disable erasure
+  tty_.c_lflag &= ~ECHONL;        // Disable new-line echo
+  tty_.c_lflag &= ~ISIG;          // Disable interpretation of INTR, QUIT and SUSP
+  tty_.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off software flow control
+  tty_.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+  tty_.c_oflag &= ~OPOST;         // Prevent special interpretation of output bytes
+  tty_.c_oflag &= ~ONLCR;         // Prevent conversion of newline to carriage return/line feed
+
+  // Set read timeout
+  tty_.c_cc[VMIN] = 0;
+  tty_.c_cc[VTIME] = 10; // 1 second read timeout
+
+  if (tcsetattr(serial_port_, TCSANOW, &tty_) != 0)
+  {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+      "Error from tcsetattr: %s", strerror(errno));
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+
+  RCLCPP_INFO(rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Serial port configured");
 
   // reset values always when configuring hardware
   for (uint i = 0; i < hw_states_.size(); i++)
