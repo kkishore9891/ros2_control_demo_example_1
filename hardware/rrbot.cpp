@@ -20,6 +20,7 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <cmath>  // For M_PI
 
 // Includes for serial communication
 #include <cstring>
@@ -299,7 +300,7 @@ hardware_interface::return_type RRBotSystemPositionOnlyHardware::read(
       try
       {
         float angle = std::stof(line);
-        if (angle >= -1.00 && angle <= 1.00)  // Ensure angle is in the valid range
+        if (angle >= -M_PI_2 && angle <= M_PI_2)  // Ensure angle is in the valid range
         {
           hw_states_[0] = static_cast<double>(angle);  // Store the angle in hw_states_
           RCLCPP_INFO(
@@ -337,16 +338,28 @@ hardware_interface::return_type RRBotSystemPositionOnlyHardware::read(
 hardware_interface::return_type RRBotSystemPositionOnlyHardware::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
+
+    if (hw_commands_.empty())
+  {
+    RCLCPP_ERROR(
+      rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+      "No command available to write.");
+    return hardware_interface::return_type::ERROR;
+  }
+
+  // Get the command value
+  float normalizedValue = static_cast<float>(hw_commands_[0]);
+
+if (normalizedValue < -M_PI_2 || normalizedValue > M_PI_2)
+  {
+    RCLCPP_ERROR(
+      rclcpp::get_logger("RRBotSystemPositionOnlyHardware"),
+      "Invalid command value: %.3f. Must be between -π/2 and π/2.", normalizedValue);
+    return hardware_interface::return_type::ERROR;
+  } 
+ 
   RCLCPP_INFO(rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Writing...");
 
-  for (uint i = 0; i < hw_commands_.size(); i++)
-  {
-    // Simulate sending commands to the hardware
-    RCLCPP_INFO(
-      rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Got command %.5f for joint %d!",
-      hw_commands_[i], i);
-  }
   RCLCPP_INFO(
     rclcpp::get_logger("RRBotSystemPositionOnlyHardware"), "Joints successfully written!");
   // END: This part here is for exemplary purposes - Please do not copy to your production code
